@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from 'react';
@@ -9,6 +10,7 @@ import { generateImageFromStoryScene } from '@/ai/flows/generate-image-from-stor
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Loader2 } from 'lucide-react'; // Import Loader2
 
 type StoryData = GenerateStoryOutput & {
   childPhotoDataUri: string;
