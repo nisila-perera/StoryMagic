@@ -9,23 +9,26 @@ import { generateStoryFromPrompt, GenerateStoryOutput } from '@/ai/flows/generat
 import { generateImageFromStoryScene } from '@/ai/flows/generate-image-from-story-scene';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { Loader2 } from 'lucide-react'; // Import Loader2
+import { Loader2, Wand2 } from 'lucide-react'; // Added Wand2 for magic feel
 
 type StoryData = GenerateStoryOutput & {
   childPhotoDataUri: string;
   childName: string;
 };
 
+type ViewState = 'form' | 'loading' | 'story';
+
 export default function Home() {
+  const [viewState, setViewState] = useState<ViewState>('form');
   const [storyData, setStoryData] = useState<StoryData | null>(null);
   const [imageUrls, setImageUrls] = useState<(string | null)[]>([]);
-  const [isLoadingStory, setIsLoadingStory] = useState(false);
-  const [isLoadingImages, setIsLoadingImages] = useState(false);
+  const [isGeneratingStory, setIsGeneratingStory] = useState(false); // Separate loading state for story generation
+  const [isGeneratingImages, setIsGeneratingImages] = useState(false); // Separate loading state for image generation
   const { toast } = useToast();
 
   const handleFormSubmit = async (formData: any) => {
-    setIsLoadingStory(true);
+    setIsGeneratingStory(true);
+    setViewState('loading'); // Show loading animation
     setStoryData(null); // Clear previous story
     setImageUrls([]); // Clear previous images
 
@@ -46,39 +49,47 @@ export default function Home() {
         childName: formData.childName,
       };
       setStoryData(fullStoryData);
-      toast({
-        title: 'Story Generated!',
-        description: 'Your personalized story is ready.',
-      });
 
       // Initialize imageUrls array with nulls
       const initialImageUrls = Array(Math.ceil(result.imagePrompts.length)).fill(null);
       setImageUrls(initialImageUrls);
 
-      // Start generating images after story is generated
+      // Story is ready, now show the story view (images will load in)
+      setViewState('story');
+      setIsGeneratingStory(false); // Story generation finished
+
+      toast({
+        title: 'Story Created!',
+        description: 'Your magical adventure awaits!',
+      });
+
+      // Start generating images *after* transitioning to story view
       generateImages(fullStoryData);
 
     } catch (error) {
       console.error('Error generating story:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to generate the story. Please try again.',
+        title: 'Oops!',
+        description: 'Something went wrong creating the story. Please try again.',
         variant: 'destructive',
       });
-    } finally {
-      setIsLoadingStory(false);
+      setViewState('form'); // Go back to form on error
+      setIsGeneratingStory(false);
     }
   };
 
  const generateImages = async (currentStoryData: StoryData) => {
     if (!currentStoryData) return;
 
-    setIsLoadingImages(true);
-    const generatedUrls: (string | null)[] = [...imageUrls]; // Start with current state (might be all nulls)
+    setIsGeneratingImages(true);
+    const generatedUrls: (string | null)[] = [...imageUrls]; // Start with current state (all nulls)
 
     try {
-      // Generate images sequentially for simplicity and to avoid rate limits
+      // Generate images sequentially
       for (let i = 0; i < currentStoryData.imagePrompts.length; i++) {
+        // Ensure component hasn't unmounted or story changed
+        if (viewState !== 'story' || storyData?.storyText !== currentStoryData.storyText) break;
+
         const sceneDescription = currentStoryData.imagePrompts[i];
         try {
           const imageResult = await generateImageFromStoryScene({
@@ -87,70 +98,69 @@ export default function Home() {
             sceneDescription: sceneDescription,
           });
           generatedUrls[i] = imageResult.generatedImageUrl;
-          // Update state after each image generation to show progress
+          // Update state progressively
           setImageUrls([...generatedUrls]);
         } catch (imageError) {
             console.error(`Error generating image for prompt ${i}:`, imageError);
-             // Keep null in the array for failed images, maybe add error state later
              toast({
-               title: 'Image Generation Error',
-               description: `Could not generate image for part ${i + 1}.`,
+               title: 'Image Glitch!',
+               description: `Could not draw picture ${i + 1}.`,
                variant: 'destructive',
              });
+             // Keep null in the array
         }
       }
     } catch (error) {
         console.error('Error during image generation loop:', error);
         toast({
-          title: 'Error',
-          description: 'An error occurred while generating images.',
+          title: 'Oops!',
+          description: 'An error occurred while drawing the pictures.',
           variant: 'destructive',
         });
     } finally {
-        setIsLoadingImages(false);
+        setIsGeneratingImages(false); // Mark image generation as complete
     }
 };
 
 
   return (
-    <div className="container mx-auto p-4 md:p-8">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <Card className="lg:col-span-1 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold text-center text-primary">Create Your StoryMagic</CardTitle>
-            <CardDescription className="text-center">Fill in the details below to generate a personalized story for your child.</CardDescription>
+    <div className="container mx-auto p-4 md:p-8 flex flex-col items-center">
+      {viewState === 'form' && (
+        <Card className="w-full max-w-2xl shadow-lg border-primary border-2 animate-fade-in">
+          <CardHeader className="bg-primary/10">
+            <CardTitle className="text-3xl font-bold text-center text-primary flex items-center justify-center gap-2">
+              <Wand2 className="h-8 w-8" /> Create Your StoryMagic
+            </CardTitle>
+            <CardDescription className="text-center text-lg text-foreground/80 pt-1">
+              Tell us a little about your adventurer!
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <StoryForm onSubmit={handleFormSubmit} isLoading={isLoadingStory} />
+          <CardContent className="p-6 md:p-8">
+            <StoryForm onSubmit={handleFormSubmit} isLoading={isGeneratingStory} />
           </CardContent>
         </Card>
+      )}
 
-        <div className="lg:col-span-2">
-          {isLoadingStory && (
-            <Card className="flex flex-col items-center justify-center h-96 shadow-lg">
-               <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-               <p className="text-muted-foreground">Generating your magical story...</p>
-            </Card>
-          )}
-          {storyData && !isLoadingStory && (
-             <StorybookDisplay
-                storyText={storyData.storyText}
-                imageUrls={imageUrls}
-                isLoadingImages={isLoadingImages}
-             />
-          )}
-          {!storyData && !isLoadingStory && (
-             <Card className="flex flex-col items-center justify-center h-96 shadow-lg bg-card">
-                <CardHeader>
-                    <CardTitle className="text-xl text-center">Your Story Will Appear Here</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-muted-foreground text-center">Fill out the form and click "Create My Story" to begin!</p>
-                 </CardContent>
-             </Card>
-          )}
+      {viewState === 'loading' && (
+        <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] text-center animate-fade-in">
+          <Wand2 className="h-16 w-16 animate-bounce text-primary mb-6" />
+          <h2 className="text-2xl font-bold text-primary mb-2">Abracadabra!</h2>
+          <p className="text-lg text-muted-foreground">Weaving your magical tale...</p>
+           <Loader2 className="h-8 w-8 animate-spin text-secondary mt-4" />
         </div>
-      </div>
+      )}
+
+      {viewState === 'story' && storyData && (
+        <div className="w-full animate-fade-in">
+          {/* Two-column layout for story and images (already handled by StorybookDisplay) */}
+           <StorybookDisplay
+              storyText={storyData.storyText}
+              imageUrls={imageUrls}
+              isLoadingImages={isGeneratingImages} // Pass down the image loading state
+              childName={storyData.childName}
+           />
+        </div>
+      )}
     </div>
   );
 }

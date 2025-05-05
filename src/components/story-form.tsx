@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from 'react';
@@ -23,15 +24,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Sparkles } from 'lucide-react'; // Added Sparkles icon
 
+// Keep schema the same, just update presentation
 const formSchema = z.object({
-  childName: z.string().min(1, { message: 'Child\'s name is required.' }),
-  childAge: z.coerce.number().min(1, { message: 'Age must be at least 1.' }).max(12, { message: 'Age cannot be more than 12.' }),
-  childPhoto: z.any().refine((fileList) => fileList?.length === 1, 'Child\'s photo is required.'),
-  favoriteFoods: z.string().min(1, { message: 'Favorite foods are required.' }),
-  preferredCartoonCharacters: z.string().min(1, { message: 'Favorite characters are required.' }),
-  childInterests: z.string().min(10, { message: 'Interests description needs at least 10 characters.' }),
+  childName: z.string().min(1, { message: "Adventurer's name is needed!" }),
+  childAge: z.coerce.number().min(1, { message: 'Age must be 1 or older.' }).max(12, { message: 'Max age is 12 for this magic!' }),
+  childPhoto: z.any().refine((fileList) => fileList?.length === 1, "We need a picture of the hero!").refine(file => file?.[0]?.size <= 5 * 1024 * 1024, "Photo must be 5MB or less."), // Add size validation
+  favoriteFoods: z.string().min(1, { message: "What yummy foods do they like?" }),
+  preferredCartoonCharacters: z.string().min(1, { message: "Who are their favorite friends?" }),
+  childInterests: z.string().min(10, { message: 'Tell us more! (At least 10 characters)' }),
   storyCategory: z.enum(['Fantasy', 'Adventure', 'Animals', 'Bedtime']).optional(),
 });
 
@@ -47,7 +49,7 @@ export function StoryForm({ onSubmit, isLoading }: StoryFormProps) {
     resolver: zodResolver(formSchema),
     defaultValues: {
       childName: '',
-      childAge: '' as unknown as number, // Initialize with empty string to prevent uncontrolled -> controlled warning
+      childAge: undefined, // Initialize age as undefined
       childPhoto: undefined,
       favoriteFoods: '',
       preferredCartoonCharacters: '',
@@ -61,108 +63,133 @@ export function StoryForm({ onSubmit, isLoading }: StoryFormProps) {
   const handleFormSubmit = async (values: StoryFormValues) => {
     const file = values.childPhoto[0];
     if (file) {
+      // Basic client-side type check
+      if (!file.type.startsWith('image/')) {
+        form.setError('childPhoto', { type: 'manual', message: 'Please upload an image file (jpg, png, gif, etc.).' });
+        return;
+      }
       const reader = new FileReader();
       reader.onloadend = () => {
         onSubmit({ ...values, childPhotoDataUri: reader.result as string });
       };
+       reader.onerror = () => {
+         form.setError('childPhoto', { type: 'manual', message: 'Could not read the photo file.' });
+       };
       reader.readAsDataURL(file);
+    } else {
+       form.setError('childPhoto', { type: 'manual', message: 'Photo is required.' });
     }
   };
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
-        <FormField
-          control={form.control}
-          name="childName"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Child's Name</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter child's name" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="childAge"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Child's Age</FormLabel>
-              <FormControl>
-                 {/* Ensure value is always a string or number for the input */}
-                 <Input
-                    type="number"
-                    placeholder="Enter child's age"
-                    {...field}
-                    value={field.value ?? ''} // Handle potential null/undefined if needed, though default prevents it
-                    onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))} // Coerce back to number or keep empty string
-                 />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+      {/* Use a more visually engaging form structure */}
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
+        {/* Group related fields */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <FormField
+            control={form.control}
+            name="childName"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-lg font-semibold text-primary">Hero's Name</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Lily the Brave" {...field} className="text-base"/>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="childAge"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-lg font-semibold text-primary">Age</FormLabel>
+                <FormControl>
+                  <Input
+                      type="number"
+                      placeholder="e.g., 5"
+                      {...field}
+                      value={field.value ?? ''} // Handle potential undefined
+                      onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                      min="1"
+                      max="12"
+                      className="text-base"
+                   />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
          <FormField
           control={form.control}
           name="childPhoto"
-          render={({ field }) => ( // field object here isn't directly used due to register, but kept for structure
-            <FormItem>
-              <FormLabel>Child's Photo</FormLabel>
-              <FormControl>
-                 {/* Use the ref from form.register for file input */}
-                <Input type="file" accept="image/*" {...photoRef} />
-              </FormControl>
-              <FormDescription>Upload a clear photo of the child.</FormDescription>
-              {/* Manually display error if needed, as FormField state might not track register error directly */}
-              {form.formState.errors.childPhoto && (
-                <p className="text-sm font-medium text-destructive">
-                  {form.formState.errors.childPhoto.message as string}
-                </p>
-               )}
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="favoriteFoods"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Favorite Foods</FormLabel>
+               <FormLabel className="text-lg font-semibold text-primary">Picture of the Hero</FormLabel>
               <FormControl>
-                <Input placeholder="e.g., Pizza, Apples, Ice Cream" {...field} />
+                <Input
+                  type="file"
+                  accept="image/png, image/jpeg, image/gif, image/webp" // Be more specific
+                  {...photoRef}
+                  className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer text-base"
+                 />
               </FormControl>
+              <FormDescription className="text-sm text-muted-foreground">A clear photo works best for magic! (Max 5MB)</FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="preferredCartoonCharacters"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Favorite Cartoon Characters</FormLabel>
-              <FormControl>
-                <Input placeholder="e.g., Paw Patrol, Peppa Pig" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <FormField
+            control={form.control}
+            name="favoriteFoods"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-lg font-semibold text-accent">Favorite Fuel</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Star Cookies, Moon Cheese" {...field} className="text-base" />
+                </FormControl>
+                 <FormDescription className="text-sm text-muted-foreground">What snacks power their adventures?</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="preferredCartoonCharacters"
+            render={({ field }) => (
+              <FormItem>
+                 <FormLabel className="text-lg font-semibold text-accent">Favorite Friends</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Sparkle Unicorn, Captain Comet" {...field} className="text-base" />
+                </FormControl>
+                 <FormDescription className="text-sm text-muted-foreground">Any buddies they'd like in the story?</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
         <FormField
           control={form.control}
           name="childInterests"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Child's Interests & Personality</FormLabel>
+              <FormLabel className="text-lg font-semibold text-secondary">About the Hero</FormLabel>
               <FormControl>
                 <Textarea
-                  placeholder="Describe the child's interests and personality (e.g., loves dinosaurs, very curious, enjoys drawing)"
+                  placeholder="What do they love? (e.g., exploring castles, talking to animals, building rockets)"
                   {...field}
+                  rows={4}
+                  className="text-base"
                 />
               </FormControl>
+               <FormDescription className="text-sm text-muted-foreground">This helps make the story extra special!</FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -172,32 +199,39 @@ export function StoryForm({ onSubmit, isLoading }: StoryFormProps) {
           name="storyCategory"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Story Category (Optional)</FormLabel>
+              <FormLabel className="text-lg font-semibold text-secondary">Adventure Type (Optional)</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a story category" />
+                  <SelectTrigger className="text-base">
+                    <SelectValue placeholder="Choose a magical theme..." />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="Fantasy">Fantasy</SelectItem>
-                  <SelectItem value="Adventure">Adventure</SelectItem>
-                  <SelectItem value="Animals">Animals</SelectItem>
-                  <SelectItem value="Bedtime">Bedtime</SelectItem>
+                  <SelectItem value="Fantasy">Fantasy Lands</SelectItem>
+                  <SelectItem value="Adventure">Exciting Quests</SelectItem>
+                  <SelectItem value="Animals">Furry Friends</SelectItem>
+                  <SelectItem value="Bedtime">Dreamy Tales</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
             </FormItem>
           )}
         />
-        <Button type="submit" disabled={isLoading} className="w-full">
+        <Button
+           type="submit"
+           disabled={isLoading}
+           className="w-full text-lg font-bold py-6 rounded-xl shadow-lg bg-gradient-to-r from-primary to-orange-400 hover:from-primary/90 hover:to-orange-400/90 transition-all transform hover:scale-105 flex items-center justify-center gap-2"
+         >
           {isLoading ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Generating Story...
+              <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+              Conjuring Story...
             </>
           ) : (
-            'Create My Story'
+             <>
+              <Sparkles className="mr-2 h-6 w-6" />
+              Create My Story!
+             </>
           )}
         </Button>
       </form>

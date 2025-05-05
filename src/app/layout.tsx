@@ -1,11 +1,16 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google'; // Using Inter font
+import { Poppins } from 'next/font/google'; // Changed from Inter to Poppins
 import './globals.css';
 import { Header } from '@/components/layout/header';
 import { Toaster } from "@/components/ui/toaster"
 import { cn } from '@/lib/utils';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
+// Initialize Poppins font with desired subsets and weights
+const poppins = Poppins({
+  subsets: ['latin'],
+  weight: ['400', '700'], // Include weights used in the design
+  variable: '--font-sans', // Assign to CSS variable
+});
 
 export const metadata: Metadata = {
   title: 'StoryMagic',
@@ -22,7 +27,7 @@ export default function RootLayout({
       <body
         className={cn(
           "min-h-screen bg-background font-sans antialiased",
-          inter.variable
+          poppins.variable // Use the Poppins font variable
         )}
       >
         <div className="relative flex min-h-screen flex-col">
