@@ -47,7 +47,7 @@ export function StoryForm({ onSubmit, isLoading }: StoryFormProps) {
     resolver: zodResolver(formSchema),
     defaultValues: {
       childName: '',
-      childAge: undefined,
+      childAge: '' as unknown as number, // Initialize with empty string to prevent uncontrolled -> controlled warning
       childPhoto: undefined,
       favoriteFoods: '',
       preferredCartoonCharacters: '',
@@ -92,7 +92,14 @@ export function StoryForm({ onSubmit, isLoading }: StoryFormProps) {
             <FormItem>
               <FormLabel>Child's Age</FormLabel>
               <FormControl>
-                <Input type="number" placeholder="Enter child's age" {...field} />
+                 {/* Ensure value is always a string or number for the input */}
+                 <Input
+                    type="number"
+                    placeholder="Enter child's age"
+                    {...field}
+                    value={field.value ?? ''} // Handle potential null/undefined if needed, though default prevents it
+                    onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))} // Coerce back to number or keep empty string
+                 />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -101,14 +108,20 @@ export function StoryForm({ onSubmit, isLoading }: StoryFormProps) {
          <FormField
           control={form.control}
           name="childPhoto"
-          render={({ field }) => (
+          render={({ field }) => ( // field object here isn't directly used due to register, but kept for structure
             <FormItem>
               <FormLabel>Child's Photo</FormLabel>
               <FormControl>
+                 {/* Use the ref from form.register for file input */}
                 <Input type="file" accept="image/*" {...photoRef} />
               </FormControl>
               <FormDescription>Upload a clear photo of the child.</FormDescription>
-              <FormMessage />
+              {/* Manually display error if needed, as FormField state might not track register error directly */}
+              {form.formState.errors.childPhoto && (
+                <p className="text-sm font-medium text-destructive">
+                  {form.formState.errors.childPhoto.message as string}
+                </p>
+               )}
             </FormItem>
           )}
         />
