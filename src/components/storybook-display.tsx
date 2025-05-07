@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, ChevronRight, Loader2, ImageOff } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, ImageOff, BookOpenText } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface StorybookDisplayProps {
@@ -14,7 +14,7 @@ interface StorybookDisplayProps {
   childName: string;
 }
 
-type ImageStatus = 'loading' | 'loaded' | 'error' | 'pending';
+type ImageStatus = 'loading' | 'loaded' | 'error' | 'no-image-expected' | 'initial';
 
 export function StorybookDisplay({ storyText, imageUrls, isLoadingImages, childName }: StorybookDisplayProps) {
   const [pages, setPages] = useState<string[]>([]);
@@ -25,34 +25,42 @@ export function StorybookDisplay({ storyText, imageUrls, isLoadingImages, childN
     const paragraphs = storyText.split('\n').filter(p => p.trim() !== '');
     setPages(paragraphs);
     setCurrentPage(0);
-    // Initialize status for all potential pages. This will be refined by the next useEffect.
-    setImageLoadingStatus(Array(paragraphs.length).fill('pending'));
+    // Initialize status for all potential pages based on the number of paragraphs.
+    setImageLoadingStatus(Array(paragraphs.length).fill('initial'));
   }, [storyText]);
 
   useEffect(() => {
+    if (pages.length === 0) {
+        // If pages array is empty (e.g. storyText was empty or being fetched),
+        // ensure imageLoadingStatus is also empty.
+        if(imageLoadingStatus.length > 0) setImageLoadingStatus([]);
+        return;
+    }
+
     const newStatusArray: ImageStatus[] = pages.map((_, index) => {
-      const imageUrl = imageUrls[index]; // URL for the current page index
+      // index corresponds to the page number (0-indexed)
+
+      // Check if an image was "expected" for this page.
+      // imageUrls.length is the number of prompts.
+      if (index >= imageUrls.length) {
+        return 'no-image-expected'; // No image prompt was generated for this story paragraph
+      }
+
+      const imageUrl = imageUrls[index]; // URL for the current page index, if available
 
       if (imageUrl) {
         return 'loaded';
       }
 
-      // Check if an image was "expected" for this page.
-      // This means an image prompt existed, so `imageUrls` array was initialized to cover this index.
-      if (index < imageUrls.length) {
-        // If overall image generation is in progress and this specific image doesn't have a URL yet
-        if (isLoadingImages) {
-          return 'loading';
-        } else {
-          // Overall image generation is finished, but this one doesn't have a URL
-          // This implies an error for this specific image.
-          return 'error';
-        }
+      // If we reach here: an image is expected (index < imageUrls.length) but imageUrls[index] is null.
+      if (isLoadingImages) {
+        // Overall image generation process for the story is active,
+        // and this specific image (imageUrls[index]) hasn't loaded yet.
+        return 'loading';
       } else {
-        // This page index is beyond the number of image prompts generated.
-        // This means the story has more pages than image prompts, which is a data mismatch.
-        // If overall loading is done, it's an error. If still loading, could be pending, but 'error' is safer.
-        return isLoadingImages ? 'pending' : 'error';
+        // Overall image generation process for the story is finished.
+        // Since imageUrls[index] is still null here, it means this specific image failed or was not generated.
+        return 'error';
       }
     });
 
@@ -63,13 +71,12 @@ export function StorybookDisplay({ storyText, imageUrls, isLoadingImages, childN
       }
       return currentStatuses;
     });
-  }, [imageUrls, isLoadingImages, pages]);
+  }, [imageUrls, isLoadingImages, pages, imageLoadingStatus.length]);
 
 
   const totalPages = pages.length;
-  const imageIndex = currentPage;
-  const currentImageUrl = imageUrls[imageIndex]; // Will be undefined if imageIndex >= imageUrls.length
-  const currentImageStatus: ImageStatus = imageLoadingStatus[imageIndex] || (isLoadingImages ? 'loading' : 'pending');
+  const currentImageStatus: ImageStatus = imageLoadingStatus[currentPage] || 'initial';
+  const currentImageUrl = imageUrls[currentPage];
 
 
   const handleNextPage = () => {
@@ -81,17 +88,21 @@ export function StorybookDisplay({ storyText, imageUrls, isLoadingImages, childN
   };
 
   useEffect(() => {
+    // Adjust currentPage if it becomes out of bounds due to pages changing
     if (pages.length > 0) {
       if (currentPage >= pages.length) {
         setCurrentPage(pages.length - 1);
-      } else if (currentPage < 0) {
+      } else if (currentPage < 0) { // Should not happen with current logic but good guard
         setCurrentPage(0);
       }
+    } else {
+       // if pages become empty, reset current page
+       setCurrentPage(0);
     }
-  }, [currentPage, pages]);
+  }, [currentPage, pages.length]);
 
 
-  if (pages.length === 0 && isLoadingImages) { // Show skeleton only if actively loading initial story/images
+  if (pages.length === 0 && isLoadingImages) {
     return (
       <Card className="w-full max-w-3xl mx-auto overflow-hidden shadow-2xl border-4 border-secondary rounded-2xl bg-card">
          <CardContent className="p-6 md:p-10 flex flex-col items-center">
@@ -109,7 +120,7 @@ export function StorybookDisplay({ storyText, imageUrls, isLoadingImages, childN
       </Card>
     );
   }
-  if (pages.length === 0) {
+  if (pages.length === 0) { // Handles case where story is empty or still loading (but not in explicit isLoadingImages phase)
       return (
         <Card className="w-full max-w-3xl mx-auto overflow-hidden shadow-2xl border-4 border-secondary rounded-2xl bg-card">
             <CardContent className="p-6 md:p-10 flex flex-col items-center justify-center min-h-[300px]">
@@ -126,7 +137,7 @@ export function StorybookDisplay({ storyText, imageUrls, isLoadingImages, childN
       <CardContent className="p-6 md:p-10 flex flex-col items-center">
          <h2 className="text-2xl font-bold text-primary mb-6 text-center">{childName}'s Magical Story!</h2>
 
-        <div className="w-full aspect-video relative mb-6 rounded-xl overflow-hidden bg-muted/50 border-2 border-accent/50 flex items-center justify-center text-center">
+        <div className="w-full aspect-video relative mb-6 rounded-xl overflow-hidden bg-muted/30 border-2 border-accent/30 flex items-center justify-center text-center">
           {currentImageStatus === 'loaded' && currentImageUrl ? (
             <Image
               src={currentImageUrl}
@@ -148,9 +159,14 @@ export function StorybookDisplay({ storyText, imageUrls, isLoadingImages, childN
                 <ImageOff className="h-10 w-10 mb-3" />
                 <span className="text-sm font-medium">Couldn't draw this part!</span>
               </div>
-          ): ( // pending or other unexpected states
+          ): currentImageStatus === 'no-image-expected' ? (
+            <div className="flex flex-col items-center justify-center text-muted-foreground/60 p-4 h-full bg-muted/20">
+               <BookOpenText className="h-10 w-10 mb-3 text-muted-foreground/50" />
+               <span className="text-sm italic">This page is text only.</span>
+           </div>
+          ) : ( // 'initial' or other unexpected states
              <div className="flex flex-col items-center justify-center text-muted-foreground/50 p-4 h-full">
-              <Loader2 className="h-10 w-10 animate-spin mb-3" />
+              <Loader2 className="h-10 w-10 animate-spin mb-3 text-muted-foreground/40" />
               <span className="text-sm">Picture coming soon...</span>
             </div>
           )}
