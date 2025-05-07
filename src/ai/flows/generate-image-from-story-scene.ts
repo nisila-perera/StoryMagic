@@ -39,6 +39,8 @@ export async function generateImageFromStoryScene(
   return generateImageFromStorySceneFlow(input);
 }
 
+// This ai.definePrompt is not directly used by the flow below, but kept for potential future reference or direct use.
+// The flow itself constructs the prompt dynamically for ai.generate.
 const generateImagePrompt = ai.definePrompt({
   name: 'generateImagePrompt',
   input: {
@@ -82,15 +84,20 @@ const generateImageFromStorySceneFlow = ai.defineFlow<
       model: 'googleai/gemini-2.0-flash-exp',
       prompt: [
         {media: {url: input.childPhotoDataUri}},
-        {text: `Generate an image of ${input.childName} in a scene described as ${input.sceneDescription}`},
+        {text: `Generate an image of ${input.childName} in a scene described as: "${input.sceneDescription}"`},
       ],
       config: {
         responseModalities: ['TEXT', 'IMAGE'],
       },
     });
 
+    if (!media || !media.url) {
+      console.error("Image generation failed: No media object or URL returned from ai.generate.", { input, media });
+      throw new Error("Image generation failed to produce a valid image URL.");
+    }
+
     return {
-      generatedImageUrl: media.url!,
+      generatedImageUrl: media.url,
     };
   }
 );
